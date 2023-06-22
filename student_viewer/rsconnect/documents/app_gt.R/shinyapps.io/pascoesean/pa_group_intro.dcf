@@ -1,0 +1,13 @@
+name: pa_group_intro
+title: pa_group_intro
+username:
+account: pascoesean
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 9339271
+bundleId: 7368097
+url: https://pascoesean.shinyapps.io/pa_group_intro/
+when: 1687288738.7262
+lastSyncTime: 1687288738.72621
+asMultiple: FALSE
+asStatic: FALSE

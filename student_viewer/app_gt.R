@@ -40,7 +40,8 @@ ui <- fluidPage(theme = shinythemes::shinytheme("yeti"),
                column(5,
                       wellPanel(
                         p(HTML("<em><strong>REMINDER:</strong></em> Please check your assigned google sheet regularly for group changes.
-                           This dashboard will <em><strong>NOT</strong></em> update automatically.")),
+                           This dashboard will <em><strong>NOT</strong></em> update automatically.</br></br>
+                           Please email seanpascoe2024@u.northwestern.edu with any questions/concerns!")),
                         fileInput("file1", "Please Upload Your Roster (.CSV)", accept = ".csv"),
                         htmlOutput("welcome_message"),
                         gt_output("overview")
@@ -58,6 +59,8 @@ ui <- fluidPage(theme = shinythemes::shinytheme("yeti"),
                       # SMALL ANSWERS HERE
                       htmlOutput("gap_year_text"),
                       htmlOutput("phone_avail_text"),
+                      htmlOutput("schedule_text"),
+                      htmlOutput("diet_text"),
                       htmlOutput("other_notes_text")
                       )
              ),
@@ -87,7 +90,8 @@ server <- function(input, output) {
 # 8. long answer questions
 # 9. gap year info
 # 10. phone availability info
-# 11. Other notes
+# 11. dietary needs
+# 12. Other notes
   
 ##########################
   
@@ -106,7 +110,7 @@ server <- function(input, output) {
     # make sure a .csv was uploaded
     validate(need(ext == "csv", "Please upload a csv file"))
     
-    read_csv(file$datapath, na = "0")
+    read_csv(file$datapath, na = c("","0", "#N/A"))
   })
 
     ####################################
@@ -130,6 +134,7 @@ server <- function(input, output) {
              To get started, please do the following: <br><br>
              1. Open the google sheet sent to you by your board member<br><br>
              2. Download the sheet as a .csv document by going to File > Download > Comma Separated Values (.csv)<br><br>
+             2.5 (optional): Manually fix any phone numbers that populate as #ERROR! due to inclusion of + with country code<br><br>
              3. Load the .csv file in the box to the left
              <br><br>
              Happy PA-ing!!"
@@ -148,8 +153,8 @@ server <- function(input, output) {
       
       name <- group_data() %>%
         transmute(PAs = case_when(
-          is.na(`PA2`) ~ `PA 1`,
-          TRUE ~ str_c(`PA 1`, " and ", `PA2`)
+          is.na(`PA2`) ~ `PA1`,
+          TRUE ~ str_c(`PA1`, " and ", `PA2`)
         )) %>%
         head(n=1) %>%
         as.character()
@@ -178,35 +183,38 @@ server <- function(input, output) {
         transmute(
           # I'm not using stringr::str_c for these because I don't want NA's to corrupt the concatenated strings
           Name = paste0(Preferred, " ", Last),  # i dont think we'll ever get NA names...
-          Pronouns = `Pronouns (WW Info Form Response)`, 
+          Pronouns = `Pronouns...7`, 
           
-          From = case_when(
+          `Active City/Region` = case_when(
             # just don't print an NA if it exists (sometimes no region)
-            is.na(Region) ~ paste0(City, ", ", Country),
+            is.na(`Active Region`) ~ `Active City`,
             # or just combine them
-            TRUE ~ paste0(City, ", ", Region, ", ", Country)),
+            TRUE ~ paste0(`Active City`, ", ", `Active Region`)),
+          
+          `Primary Citizenship` = `Primary Citizenship`,
           
           `Favorite Song` = case_when(
             # leave NA as NA if both
-            is.na(`Fave Song - Title`) & is.na(`Fave Song - Artist`) ~ NA,
+            is.na(`Song Title`) & is.na(`Artist`) ~ NA,
             # or just combine them
-            TRUE ~ paste0(`Fave Song - Title`, " by ", `Fave Song - Artist`)),
+            TRUE ~ paste0(`Song Title`, " by ", `Artist`)),
           
           DOB = paste0(Birthdate, " (", zodiac, ")"),
-          `Phone #` = `Mobile Phone`,
+          `Phone #` = `Primary`,
+          
           # if no major 2, then just give their one major. If 2 majors, give both
           `Intended Major(s)` = case_when(
             is.na(`Major 2`) ~ `Major 1`,
             TRUE ~ str_c(`Major 1`, " and ", `Major 2`)
           ),
-          `Last School` = `High School/Last College`
+          `Last School` = `High School`
         )
       
       # Get data in format for table:
       # PIVOT LONGER SLAY
       
       longer_overview <- student_overview %>%
-        pivot_longer(2:8, names_to = "Question", values_to = "Response") %>%
+        pivot_longer(2:9, names_to = "Question", values_to = "Response") %>%
         drop_na()
       
       longer_overview %>%
@@ -231,6 +239,8 @@ server <- function(input, output) {
 
       group_data <- group_data()
       
+      group_size = nrow(group_data)
+      
       # getting most popular major(s)
       major_counts <- group_data %>%
         group_by(`Major 1`) %>%
@@ -252,9 +262,9 @@ server <- function(input, output) {
       group_stats <- group_data %>%
         head(n=1) %>%
         transmute(
-          `PA Group #` = as.character(`Group Number`),
-          `# of Students` = as.character(`Group Size`),
-          `Your Board Member` = `Board 1`,
+         # `PA Group #` = as.character(`Group Number`),
+          `# of Students` = as.character(group_size),
+          `Your Board Member` = `PA1 Board Member`,
           `Most Popular Major(s)` = 
             # can't use `case_when` here because it evaluates ALL RHS cases, even if LHS is false
             # this wont work bc not all our RHS inputs exist when LHS is false
@@ -371,9 +381,7 @@ server <- function(input, output) {
           smartphone = str_c(Preferred, " ", Last, ": ", `Do you have a smartphone with internet connectivity (that operates in the US)?`))
       
       if (nrow(smart_avail) == 0)
-      {HTML("<h4><strong>Students that don't have US smartphones:</strong></h4>
-             <br>
-             None of your Students took gap years.")}
+      {HTML("<h4><strong>All students have US smartphones.</strong></h4>")}
       else 
       {HTML(str_c("<h4><strong>Students that don't have US smartphones:</strong></h4>",
                   "<br>",
@@ -381,9 +389,61 @@ server <- function(input, output) {
       
       
     })
+
+    ####################################
+    ###  11. Scheduling Concerns ----
+    ####################################
+    
+    output$schedule_text <- renderPrint({
+      
+      group_data <- group_data()
+      
+      sched_concern <- group_data %>%
+        filter(!is.na(`Do you have any scheduling concerns as you prepare to participate in Wildcat Welcome from Monday, September 11 through Monday, September 18? If so, provide your concerns below.`)) %>%
+        transmute(
+          smartphone = str_c(Preferred, " ", Last, ": ", `Do you have any scheduling concerns as you prepare to participate in Wildcat Welcome from Monday, September 11 through Monday, September 18? If so, provide your concerns below.`)
+        )
+      
+      if (nrow(sched_concern) == 0)
+      {HTML("<h4><strong>Your students don't have any scheduling concerns.</strong></h4>")}
+      else 
+      {HTML(str_c("<h4><strong>Students with WW scheduling concerns:</strong></h4>",
+                  "<br>",
+                  sched_concern[[1]] %>% str_flatten(collapse = "<br><br>")))}
+      
+      
+    })
+    
+    
+    
+     
+    ####################################
+    ###  12. Dietary needs ----
+    ####################################
+    
+    output$diet_text <- renderPrint({
+      
+      group_data <- group_data()
+      
+      diet_needs <- group_data %>%
+        filter(!is.na(`Do you have any dietary needs for event organizers to be aware of?`)) %>%
+        transmute(
+          smartphone = str_c(Preferred, " ", Last, ": ", `Do you have any dietary needs for event organizers to be aware of?`)
+          )
+      
+      if (nrow(diet_needs) == 0)
+      {HTML("<h4><strong>Your students don't have any dietary restrictions.</strong></h4>")}
+      else 
+      {HTML(str_c("<h4><strong>Students with dietary restrictions:</strong></h4>",
+                  "<br>",
+                  diet_needs[[1]] %>% str_flatten(collapse = "<br><br>")))}
+      
+      
+    })
+    
     
     ####################################
-    ###  11. Other Notes ----
+    ###  13. Other Notes ----
     ####################################
     
     output$other_notes_text <- renderPrint({

@@ -4,7 +4,7 @@ library(gt)
 
 # FOR NOW: just read in group data
 
-group_data <- read_csv("test_data.csv", na = "0")
+group_data <- read_csv("~/Desktop/test.csv", na = c("0", ""))
 
 
 

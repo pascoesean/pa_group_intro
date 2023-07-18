@@ -5,9 +5,9 @@ account: pascoesean
 server: shinyapps.io
 hostUrl: https://api.shinyapps.io/v1
 appId: 9339271
-bundleId: 7373611
+bundleId: 7471438
 url: https://pascoesean.shinyapps.io/pa_group_intro/
-when: 1687404220.1311
-lastSyncTime: 1687404220.13112
+when: 1689697849.98457
+lastSyncTime: 1689697849.98459
 asMultiple: FALSE
 asStatic: FALSE
